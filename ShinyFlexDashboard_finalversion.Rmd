@@ -1,0 +1,674 @@
+---
+title: "Financial Vulnerabilities Dashboard Monitor"
+resource_files:
+runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(readxl)
+library(ggplot2)
+library(reshape2)
+library(plotly)
+library(dplyr)
+library(knitr)
+library(flexdashboard)
+if(!require(devtools)) install.packages("devtools")
+if(!require(ggpubr)) devtools::install_github("kassambara/ggpubr")
+library(ggpubr)
+library(shiny)
+```
+
+```{r, include=FALSE}
+#getwd()
+```
+
+
+```{r read the data files, include=F}
+source("heatmap_functions.R")
+#shinyoff datapath <- "../DataFolder"
+#datapath <- "../DataFolder"
+datapath <- "../EXCEL DATA FILES"
+excel_files <- list.files(path = datapath, pattern = "xlsm")
+excel_files = data.frame(Datafiles = excel_files   )
+colnames(excel_files) = "Data files"
+```
+
+
+
+```{r run the loop to get the last n Quarter risk colors, include = F}
+
+# input file is very important. Uses this to determine which risk tail to use, start time, etc.
+#shinyoff input_raw = read_excel(file.path("..", "user_input_file.xlsx"))
+input_raw = read_excel(file.path(".", "user_input_file.xlsx"))
+
+# Remove empty rows in input file. 
+input_file = input_raw[!is.na(input_raw$file_name),]
+
+# Run loop over the time series.  
+risk_data_raw = NULL # Data frame to store all the last 4 risk colors for all the time series.
+
+
+for (i in 1:nrow(input_file)){
+  
+    #i = 1 #For debugging.
+    print(paste0('i :', i))
+    risk_data_current = try(  last_n_Quarters_risk_color(file_name = input_file$file_name[i], 
+                         time_series_name = input_file$time_series_name[i], 
+                         y = input_file$y[i], 
+                         y_axis_label = input_file$y_axis_label[i],
+                         Ratio_var_name = input_file$Ratio_var_name[i],                
+                         time_series_type = input_file$time_series_type[i], # "Monthly" or "Quarterly"
+                         start_ts_at = input_file$start_ts_at[i], # if Quarterly: "Q1 1994", "Q1 1983", if Monthly: "Jan03"
+                         risk = input_file$risk[i],            # "two_tailed",  "right_tailed",  "left_tailed"
+                         bucket = input_file$bucket[i],
+                         sub_bucket = input_file$sub_bucket[i],
+                         end_ts_at = input_file$end_ts_at[i], 
+                         n_Quarters = 4,  
+                         datapath = datapath, 
+                         export_R_calculations = "Yes")  )
+    
+    risk_data_raw = rbind(risk_data_raw, risk_data_current)
+    
+}
+
+```
+
+
+
+```{r Data Cleaning}
+
+################ Do data cleaning
+
+## Omit empty rows that have NA in the time_series. Do not use other columns to do this (do not use risk_data = na.omit(risk_data)).
+risk_data_raw = risk_data_raw[!is.na(risk_data_raw$time_series_name),]
+risk_data = risk_data_raw
+
+# Search for sub_buckets with only one time_series in the bucket. Do not show the sub_bucket for those ones. 
+#Will use the user_input_file to do this. 
+
+#table(input_file$sub_bucket)
+
+# Dertermining the sub_buckets with only one time_series.
+sub_bucket_count_data = input_file %>% group_by(sub_bucket) %>% summarise(count = n())
+sub_buckets_with_count_1 = sub_bucket_count_data$sub_bucket[sub_bucket_count_data$count == 1]
+
+## Replace the sub_bucket with NA to " " empty string. 
+risk_data$sub_bucket = as.character(risk_data$sub_bucket) #First convert sub_bucket from factor type to charactor type
+risk_data$sub_bucket[  risk_data$sub_bucket %in% sub_buckets_with_count_1 ] = "   "
+
+#Data check
+risk_wide  = dcast(risk_data, time_series_name ~ Period, value.var = "risk_color")
+
+#write.csv(risk_data, "risk_data.csv", row.names = F) #export the table
+
+
+```
+
+
+```{r Export the risk_data, include=FALSE}
+# Code to export the clean version of the the risk_data.
+todaysDate = format(Sys.time(), "%d%m%Y")
+risk_data_path = file.path("..", "StoreRiskData") 
+dir.create(risk_data_path)  
+risk_data_name_and_path = file.path( risk_data_path, paste0( "risk_data_", todaysDate, ".csv"))
+write.csv(risk_data, file = risk_data_name_and_path, row.names = F) # in case want to export the data.
+```
+
+# Heatmaps
+
+<!-- ## Row 1 {data-height=600} -->
+
+## Column 1 
+
+
+### `r paste( gsub( " Risk", "", unique(risk_data$bucket)[1] )  , "Bucket")`
+
+```{r}
+
+windowsFonts(Times=windowsFont("Times New Roman"))
+require(ggplot2)
+require(ggpubr)
+
+bucket_list = unique(input_file$bucket)
+strip_text_y = 9
+
+bucket = bucket_list[1]
+
+    data = risk_data[risk_data$bucket == bucket,]
+    
+    
+    # Create the arrow_data_frame which will be used to create the arrow plots.
+    
+    ## Identify the last 2 quarters.
+    ratio_ts_keep = as.character(tail(unique(data$Period), 2))
+    
+    second_last_Q = ratio_ts_keep[1]
+    last_Q = ratio_ts_keep[2]  
+    
+    ## Now create the row data
+    
+    arrow_data_frame = data[data$Period == last_Q, ]
+    
+    last_ratio_ts = as.numeric(data$ratio_ts[data$Period == last_Q ])
+    second_last_ratio_ts =  as.numeric(data$ratio_ts[data$Period == second_last_Q ])
+    
+    arrow_vector = last_ratio_ts - second_last_ratio_ts
+    #!all(arrow_vector == 0)
+    #arrow = ifelse(arrow_vector>0, paste0("\\","u2B9D"), paste0("\\", "u2B9F") ) # different type
+    
+    arrow = ifelse(arrow_vector>0, 24, 25)
+    arrow_col = ifelse(arrow == 24, "grey", "white")
+    arrow_data_frame$arrow = arrow ; arrow_data_frame$ratio_ts_diff = arrow_vector ; arrow_data_frame$arrow_col = arrow_col
+
+    p1 = ggplot(data, aes(x = Period, y = time_series_name))+
+          geom_point(size = 8, color = data$risk_color, shape = "square") +
+          labs(title = paste("Financial Vulnerability", "--", bucket),  y = "", x = "") +
+          theme(text=element_text(family="Times"),
+                axis.text.y = element_text(hjust = 1, face = "plain", size = 16), 
+                axis.text.x = element_text(face="bold", size = 16), 
+                axis.ticks.x=element_blank(),
+                plot.title = element_text(family="Times", face = "bold", size = 20),
+                plot.margin = margin(1, 1, 10, 50),
+                
+                plot.title.position = "plot") +
+          scale_x_discrete(position = "top") +
+          facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F, switch = "y")+
+          theme(strip.text.y = element_text(size = strip_text_y, face = "bold")) # labeller = label_wrap_gen()
+    
+    
+    p2 = ggplot(arrow_data_frame, aes(x = Period, y = time_series_name))+
+          geom_point( shape = arrow_data_frame$arrow, size = 3, fill = arrow_data_frame$arrow_col) + #
+          labs(  y = "", x = "") +   
+          theme(axis.title.x=element_blank(),
+                axis.text.x=element_text(family = "Times",face="bold", size = 16),
+                axis.ticks.x=element_blank(),
+                axis.title.y=element_blank(),
+                axis.text.y=element_blank(),
+                axis.ticks.y=element_blank(),
+                aspect.ratio = 10/1) +
+          scale_x_discrete(breaks=c("Q4 2019"),labels=c("Trend"), position = "top") +
+          facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F) + 
+          theme(strip.background = element_blank(),  strip.text.y = element_blank())
+    #p2 = p2 + clean_theme()
+    
+    figure1 = ggarrange(p1,p2, ncol = 2, nrow = 1, widths = c(10, 1), align = "h") 
+    renderPlot({annotate_figure(figure1)})
+    
+
+```
+
+### `r paste( gsub( " Risk", "", unique(risk_data$bucket)[2] )  , "Bucket")`
+
+    
+```{r}
+    
+strip_text_y = 13
+    
+    bucket = bucket_list[2]
+
+    data = risk_data[risk_data$bucket == bucket,]
+    
+    
+    # Create the arrow_data_frame which will be used to create the arrow plots.
+    
+    ## Identify the last 2 quarters.
+    ratio_ts_keep = as.character(tail(unique(data$Period), 2))
+    
+    second_last_Q = ratio_ts_keep[1]
+    last_Q = ratio_ts_keep[2]  
+    
+    ## Now create the row data
+    
+    arrow_data_frame = data[data$Period == last_Q, ]
+    
+    last_ratio_ts = as.numeric(data$ratio_ts[data$Period == last_Q ])
+    second_last_ratio_ts =  as.numeric(data$ratio_ts[data$Period == second_last_Q ])
+    
+    arrow_vector = last_ratio_ts - second_last_ratio_ts
+    #!all(arrow_vector == 0)
+    #arrow = ifelse(arrow_vector>0, paste0("\\","u2B9D"), paste0("\\", "u2B9F") ) # different type
+    
+    arrow = ifelse(arrow_vector>0, 24, 25)
+    arrow_col = ifelse(arrow == 24, "grey", "white")
+    arrow_data_frame$arrow = arrow ; arrow_data_frame$ratio_ts_diff = arrow_vector ; arrow_data_frame$arrow_col = arrow_col
+
+    p3 = ggplot(data, aes(x = Period, y = time_series_name))+
+          geom_point(size = 8, color = data$risk_color, shape = "square") +
+          labs(title = paste("Financial Vulnerability", "--", bucket),  y = "", x = "") +
+          theme(text=element_text(family="Times"),
+                axis.text.y = element_text(hjust = 1, face = "plain", size = 16), 
+                axis.text.x = element_text(face="bold", size = 16), 
+                axis.ticks.x=element_blank(),
+                plot.title = element_text(family="Times", face = "bold", size = 20),
+                plot.title.position = "plot") +
+          scale_x_discrete(position = "top") +
+          facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F, switch = "y")+
+          theme(strip.text.y = element_text(size = strip_text_y, face = "bold")) # labeller = label_wrap_gen()
+
+    
+    p4 = ggplot(arrow_data_frame, aes(x = Period, y = time_series_name))+
+          geom_point( shape = arrow_data_frame$arrow, size = 3, fill=arrow_data_frame$arrow_col) + #
+          labs(  y = "", x = "") +   
+          theme(axis.title.x=element_blank(),
+                axis.text.x=element_text(family = "Times",face="bold", size = 16),
+                axis.ticks.x=element_blank(),
+                axis.title.y=element_blank(),
+                axis.text.y=element_blank(),
+                axis.ticks.y=element_blank(),
+                aspect.ratio = 10/1) +
+          scale_x_discrete(breaks=c("Q4 2019"),labels=c("Trend"), position = "top") +
+          facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F) + 
+          theme(strip.background = element_blank(),  strip.text.y = element_blank())
+    #p2 = p2 + clean_theme()
+
+    figure2 = ggarrange(p3,p4, ncol = 2, nrow = 1, widths = c(10, 1), align = "h") 
+    renderPlot({annotate_figure(figure2)})
+    
+```
+
+<!-- ## Row 2 {data-height=800} -->
+
+## Column 2 
+
+### `r paste( gsub( " Risk", "", unique(risk_data$bucket)[4] )  , "Bucket")`
+
+    
+```{r}    
+    
+strip_text_y = 13
+    
+bucket = bucket_list[4]
+data = risk_data[risk_data$bucket == bucket,]
+    
+    
+    # Create the arrow_data_frame which will be used to create the arrow plots.
+    
+    ## Identify the last 2 quarters.
+    ratio_ts_keep = as.character(tail(unique(data$Period), 2))
+    
+    second_last_Q = ratio_ts_keep[1]
+    last_Q = ratio_ts_keep[2]  
+    
+    ## Now create the row data
+    
+    arrow_data_frame = data[data$Period == last_Q, ]
+    
+    last_ratio_ts = as.numeric(data$ratio_ts[data$Period == last_Q ])
+    second_last_ratio_ts =  as.numeric(data$ratio_ts[data$Period == second_last_Q ])
+    
+    arrow_vector = last_ratio_ts - second_last_ratio_ts
+    #!all(arrow_vector == 0)
+    #arrow = ifelse(arrow_vector>0, paste0("\\","u2B9D"), paste0("\\", "u2B9F") ) # different type
+    
+    arrow = ifelse(arrow_vector>0, 24, 25)
+    arrow_col = ifelse(arrow == 24, "grey", "white")
+    arrow_data_frame$arrow = arrow ; arrow_data_frame$ratio_ts_diff = arrow_vector ; arrow_data_frame$arrow_col = arrow_col
+
+    p5 = ggplot(data, aes(x = Period, y = time_series_name))+
+          geom_point(size = 8, color = data$risk_color, shape = "square") +
+          labs(title = paste("Financial Vulnerability", "--", bucket),  y = "", x = "") +
+          theme(text = element_text(family = "Times"),
+                axis.text.y = element_text(hjust = 1, face = "plain", size = 16), 
+                axis.text.x = element_text(face = "bold", size = 16), 
+                axis.ticks.x=element_blank(),
+                plot.title = element_text(family = "Times", face = "bold", size = 20),
+                plot.margin = margin(10, 1, 10, 120),
+                
+                plot.title.position = "plot") +
+          scale_x_discrete(position = "top") +
+          facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F, switch = "y") +
+          theme(strip.text.y = element_text(size = strip_text_y, face = "bold"))# labeller = label_wrap_gen()
+    
+    
+    p6 = ggplot(arrow_data_frame, aes(x = Period, y = time_series_name))+
+          geom_point( shape = arrow_data_frame$arrow, size = 3, fill=arrow_data_frame$arrow_col) + #
+          labs(  y = "", x = "") +   
+          theme(axis.title.x=element_blank(),
+                axis.text.x=element_text(family = "Times",face = "bold", size = 16),
+                axis.ticks.x=element_blank(),
+                axis.title.y=element_blank(),
+                axis.text.y=element_blank(),
+                axis.ticks.y=element_blank(),
+                aspect.ratio = 10/1) +
+          scale_x_discrete(breaks=c("Q4 2019"),labels=c("Trend"), position = "top") +
+          facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F) + 
+          theme(strip.background = element_blank(),  strip.text.y = element_blank())
+    #p2 = p2 + clean_theme()
+    
+    figure3 = ggarrange(p5,p6, ncol = 2, nrow = 1, widths = c(10, 1), align = "h") 
+    renderPlot({annotate_figure(figure3)})
+    
+```
+
+
+### `r paste( gsub( " Risk", "", unique(risk_data$bucket)[3] )  , "Bucket")`
+
+    
+```{r}
+    
+strip_text_y = 10
+    bucket = bucket_list[3]
+
+    data = risk_data[risk_data$bucket == bucket,]
+    
+    
+    # Create the arrow_data_frame which will be used to create the arrow plots.
+    
+    ## Identify the last 2 quarters.
+    ratio_ts_keep = as.character(tail(unique(data$Period), 2))
+    
+    second_last_Q = ratio_ts_keep[1]
+    last_Q = ratio_ts_keep[2]  
+    
+    ## Now create the row data
+    
+    arrow_data_frame = data[data$Period == last_Q, ]
+    
+    last_ratio_ts = as.numeric(data$ratio_ts[data$Period == last_Q ])
+    second_last_ratio_ts =  as.numeric(data$ratio_ts[data$Period == second_last_Q ])
+    
+    arrow_vector = last_ratio_ts - second_last_ratio_ts
+    #!all(arrow_vector == 0)
+    #arrow = ifelse(arrow_vector>0, paste0("\\","u2B9D"), paste0("\\", "u2B9F") ) # different type
+    
+    arrow = ifelse(arrow_vector>0, 24, 25)
+    arrow_col = ifelse(arrow == 24, "grey", "white")
+    arrow_data_frame$arrow = arrow ; arrow_data_frame$ratio_ts_diff = arrow_vector ; arrow_data_frame$arrow_col = arrow_col
+
+    p7 = ggplot(data, aes(x = Period, y = time_series_name))+
+          geom_point(size = 8, color = data$risk_color, shape = "square") +
+          labs(title = paste("Financial Vulnerability", "--", bucket),  y = "", x = "") +
+          theme(text=element_text(family="Times"),
+                axis.text.y = element_text(hjust = 1, face = "plain", size = 16), 
+                axis.text.x = element_text(face="bold", size = 16), 
+                axis.ticks.x=element_blank(),
+                plot.title = element_text(family="Times", face = "bold", size = 20),
+                plot.margin = margin(10, 1, 10, 5),
+                
+                plot.title.position = "plot") +
+          scale_x_discrete(position = "top") +
+          facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F, switch = "y") +
+          theme(strip.text.y = element_text(size = strip_text_y, face = "bold"))
+          # labeller = label_wrap_gen()
+    
+    
+    p8 = ggplot(arrow_data_frame, aes(x = Period, y = time_series_name))+
+          geom_point( shape = arrow_data_frame$arrow, size = 3, fill=arrow_data_frame$arrow_col) + #
+          labs(  y = "", x = "") +   
+          theme(axis.title.x=element_blank(),
+                axis.text.x=element_text(family = "Times",face="bold", size = 16),
+                axis.ticks.x=element_blank(),
+                axis.title.y=element_blank(),
+                axis.text.y=element_blank(),
+                axis.ticks.y=element_blank(),
+                aspect.ratio = 10/1) +
+          scale_x_discrete(breaks=c("Q4 2019"),labels=c("Trend"), position = "top") +
+          facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F) + 
+          theme(strip.background = element_blank(),  strip.text.y = element_blank()  )
+    #p2 = p2 + clean_theme()
+    
+    figure4 = ggarrange(p7,p8, ncol = 2, nrow = 1, widths = c(10, 1), align = "h") 
+    renderPlot({annotate_figure(figure4)}, res =68) 
+    
+    
+    # figure = ggarrange(p1,p2,p3, p4, ncol = 2, nrow = 2, align = "hv") 
+    # print(annotate_figure(figure))
+
+```
+
+<!-- Individual heatmaps with subplots -->
+
+
+# `r unique(risk_data$bucket)[1]`
+
+## Column 1 {data-width=500}
+
+### `r unique(risk_data$bucket)[1]`
+
+```{r, fig.width=8, fig.height=6}
+
+
+for ( bucket in unique(risk_data$bucket)[1] ) {
+  
+  #renderPlot({
+    heatmap_cat_data(risk_data, bucket) 
+  #})
+  
+}  
+
+
+```
+
+
+### 
+
+```{r}
+library(dplyr)
+
+selectInput("select_timeseries_from_risk_bucket1", 
+            label = "Choose a Time Series", 
+            choices = unique( filter(input_file, bucket == unique(risk_data$bucket)[1]  )$time_series_name  ) 
+            )
+
+```
+
+
+## Column 2 {data-width=800}
+
+### Subplots 
+
+
+```{r, fig.width=10, fig.height=10}
+#, fig.width=10, fig.height=15
+#print(input$select_timeseries_from_risk_bucket)
+
+
+renderPlot({
+  
+input_file_row = filter( input_file, time_series_name ==  input$select_timeseries_from_risk_bucket1) 
+
+create_subplots(file_name = input_file_row$file_name,
+                         time_series_name = input_file_row$time_series_name,
+                         y = input_file_row$y,
+                         y_axis_label = input_file_row$y_axis_label,
+                         Ratio_var_name = input_file_row$Ratio_var_name,
+                         time_series_type = input_file_row$time_series_type, # "Monthly" or "Quarterly"
+                         start_ts_at = input_file_row$start_ts_at, # if Quarterly: "Q1 1994", "Q1 1983", if Monthly: "Jan03"
+                         risk = input_file_row$risk,            # "two_tailed",  "right_tailed",  "left_tailed"
+                         bucket = input_file_row$bucket,
+                         sub_bucket = input_file_row$sub_bucket,
+                         end_ts_at = input_file_row$end_ts_at,
+                         n_Quarters = 4,
+                         datapath = datapath,
+                         export_merged_data = "No")
+}, res = 120)
+
+```
+
+# `r unique(risk_data$bucket)[2]` 
+
+## Column 1 {data-width=500}
+
+### `r unique(risk_data$bucket)[2]`
+
+```{r, fig.width=7.5, fig.height=7.5}
+
+
+for (   bucket in unique(risk_data$bucket)[2]   ) {
+    (heatmap_cat_data(risk_data, bucket))
+} 
+
+
+```
+
+
+### 
+
+```{r}
+
+selectInput("select_timeseries_from_risk_bucket2", 
+            label = "Choose a Time Series", 
+            choices = unique( filter(input_file, bucket == unique(risk_data$bucket)[2]  )$time_series_name  ) 
+            )
+
+```
+
+
+## Column 2 {data-width=800}
+
+### Subplots 
+
+```{r, fig.width=10, fig.height=10}
+
+#print(input$select_timeseries_from_risk_bucket)
+
+
+renderPlot({
+  
+  
+input_file_row = filter( input_file, time_series_name ==  input$select_timeseries_from_risk_bucket2) 
+  
+create_subplots(file_name = input_file_row$file_name,
+                         time_series_name = input_file_row$time_series_name,
+                         y = input_file_row$y,
+                         y_axis_label = input_file_row$y_axis_label,
+                         Ratio_var_name = input_file_row$Ratio_var_name,
+                         time_series_type = input_file_row$time_series_type, # "Monthly" or "Quarterly"
+                         start_ts_at = input_file_row$start_ts_at, # if Quarterly: "Q1 1994", "Q1 1983", if Monthly: "Jan03"
+                         risk = input_file_row$risk,            # "two_tailed",  "right_tailed",  "left_tailed"
+                         bucket = input_file_row$bucket,
+                         sub_bucket = input_file_row$sub_bucket,
+                         end_ts_at = input_file_row$end_ts_at,
+                         n_Quarters = 4,
+                         datapath = datapath,
+                         export_merged_data = "No")
+}, res = 120 )
+
+```
+
+# `r unique(risk_data$bucket)[3]`
+
+## Column 1 {data-width=500}
+
+### `r unique(risk_data$bucket)[3]`
+
+```{r, fig.width=8, fig.height=8}
+
+
+for (   bucket in unique(risk_data$bucket)[3]  ) {
+    (heatmap_cat_data(risk_data, bucket))
+} 
+
+
+```
+
+###
+
+```{r}
+library(dplyr)
+
+selectInput("select_timeseries_from_risk_bucket3", 
+            label = "Choose a Time Series", 
+            choices = unique( filter(input_file, bucket == unique(risk_data$bucket)[1]  )$time_series_name  ) 
+            )
+
+```
+
+## Column 1 {data-width=800}
+
+### Subplots
+
+
+
+```{r, fig.width=10, fig.height=10}
+
+#print(input$select_timeseries_from_risk_bucket)
+
+
+renderPlot({
+  
+input_file_row = filter( input_file, time_series_name ==  input$select_timeseries_from_risk_bucket3) 
+
+create_subplots(file_name = input_file_row$file_name,
+                         time_series_name = input_file_row$time_series_name,
+                         y = input_file_row$y,
+                         y_axis_label = input_file_row$y_axis_label,
+                         Ratio_var_name = input_file_row$Ratio_var_name,
+                         time_series_type = input_file_row$time_series_type, # "Monthly" or "Quarterly"
+                         start_ts_at = input_file_row$start_ts_at, # if Quarterly: "Q1 1994", "Q1 1983", if Monthly: "Jan03"
+                         risk = input_file_row$risk,            # "two_tailed",  "right_tailed",  "left_tailed"
+                         bucket = input_file_row$bucket,
+                         sub_bucket = input_file_row$sub_bucket,
+                         end_ts_at = input_file_row$end_ts_at,
+                         n_Quarters = 4,
+                         datapath = datapath,
+                         export_merged_data = "No")
+}, res = 120)
+
+```
+
+# `r unique(risk_data$bucket)[4]` 
+
+## Column 1 {data-width=500}
+
+### `r unique(risk_data$bucket)[4]`
+
+```{r, fig.width=6, fig.height=4}
+
+
+for ( bucket in unique(risk_data$bucket)[4] ) {
+    (heatmap_cat_data(risk_data, bucket))
+} 
+
+```
+
+
+### 
+
+
+```{r}
+
+selectInput("select_timeseries_from_risk_bucket4", 
+            label = "Choose a Time Series", 
+            choices = unique( filter(input_file, bucket == unique(risk_data$bucket)[4]  )$time_series_name  ) 
+            )
+
+```
+
+
+## Column 2 {data-width=800}
+
+### Subplots  
+
+
+```{r, fig.width=10, fig.height=10}
+
+#print(input$select_timeseries_from_risk_bucket)
+
+
+renderPlot({
+  
+input_file_row = filter( input_file, time_series_name ==  input$select_timeseries_from_risk_bucket4) 
+
+create_subplots(file_name = input_file_row$file_name,
+                         time_series_name = input_file_row$time_series_name,
+                         y = input_file_row$y,
+                         y_axis_label = input_file_row$y_axis_label,
+                         Ratio_var_name = input_file_row$Ratio_var_name,
+                         time_series_type = input_file_row$time_series_type, # "Monthly" or "Quarterly"
+                         start_ts_at = input_file_row$start_ts_at, # if Quarterly: "Q1 1994", "Q1 1983", if Monthly: "Jan03"
+                         risk = input_file_row$risk,            # "two_tailed",  "right_tailed",  "left_tailed"
+                         bucket = input_file_row$bucket,
+                         sub_bucket = input_file_row$sub_bucket,
+                         end_ts_at = input_file_row$end_ts_at,
+                         n_Quarters = 4,
+                         datapath = datapath,
+                         export_merged_data = "No")
+}, res = 120)
+
+```
+
