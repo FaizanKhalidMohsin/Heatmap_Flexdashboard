@@ -1460,7 +1460,7 @@ heatmap_cat_data = function(risk_data, bucket) {
           plot.title = element_text(family="Times", face = "bold", size = 16),
           plot.title.position = "plot") +
     scale_x_discrete(position = "top") +
-    facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F, switch = "y") # labeller = label_wrap_gen()
+    facet_grid(sub_bucket~.,  scales = "free", shrink = F, switch = "y") # labeller = label_wrap_gen() #Removed: space = "free"
   #p1 = ggplotly(p1)
   
   p2 = ggplot(arrow_data_frame, aes(x = Period, y = time_series_name))+
@@ -1474,7 +1474,7 @@ heatmap_cat_data = function(risk_data, bucket) {
           axis.ticks.y=element_blank(),
           aspect.ratio = 10/1) +
     scale_x_discrete(breaks=c("Q4 2019"),labels=c("Trend"), position = "top") +
-    facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F) + 
+    facet_grid(sub_bucket~.,  scales = "free", shrink = F) +                      # Removed: space = "free"
     theme(strip.background = element_blank(),  strip.text.y = element_blank())
   #p2 = p2 + clean_theme()
   #p2 = ggplotly(p2)

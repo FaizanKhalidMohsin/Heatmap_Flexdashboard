@@ -158,12 +158,34 @@ bucket = bucket_list[1]
     second_last_ratio_ts =  as.numeric(data$ratio_ts[data$Period == second_last_Q ])
     
     arrow_vector = last_ratio_ts - second_last_ratio_ts
+    
+    arrow_data_frame$ratio_ts_diff = arrow_vector
     #!all(arrow_vector == 0)
     #arrow = ifelse(arrow_vector>0, paste0("\\","u2B9D"), paste0("\\", "u2B9F") ) # different type
     
+    # Set direction of arrow based on growing or decreasing financial vunerabilities, and based on tail-type risk. 
+    
+    # arrow = ifelse(risk == 'two_tailed', ifelse(arrow_vector>0, 24, 25), 
+    #                ifelse(risk == 'right_tailed', ifelse(arrow_vector>0, 24, 25), 
+    #                       ifelse(risk == 'two_tailed', ifelse(arrow_vector>0, 24, 25), .  )) )
+    # 
+    #  arrow = function(risk, arrow_vector){
+    #    
+    #    result= if(risk == 'two_tailed') {
+    #               ifelse(arrow_vector>0, 24, 25) 
+    #          } else if( risk == 'right_tailed' ) {
+    #               ifelse(arrow_vector>0, 24, 25)
+    #          } else if( risk == 'left_tailed') {
+    #               ifelse(arrow_vector>0, 24, 25)
+    #          } else {NULL}
+    #    
+    #     return(result)
+    #  }
+     
     arrow = ifelse(arrow_vector>0, 24, 25)
+    arrow_data_frame$arrow = arrow
     arrow_col = ifelse(arrow == 24, "grey", "white")
-    arrow_data_frame$arrow = arrow ; arrow_data_frame$ratio_ts_diff = arrow_vector ; arrow_data_frame$arrow_col = arrow_col
+    arrow_data_frame$arrow_col = arrow_col
 
     p1 = ggplot(data, aes(x = Period, y = time_series_name))+
           geom_point(size = 8, color = data$risk_color, shape = "square") +
