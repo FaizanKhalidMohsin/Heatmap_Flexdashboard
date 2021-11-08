@@ -42,8 +42,10 @@ library(plotly)
 ```{r Macro-enabled Excel Files in the directory, include = TRUE}
 #path <- getwd()
 #path
-datapath <- "../EXCEL DATA FILES"
+datapath <- "./EXCEL DATA FILES"
+datapath
 excel_files <- list.files(path = datapath, pattern = "xlsm")
+
 excel_files
 ```
 
@@ -63,7 +65,7 @@ last_n_Quarters_risk_color <- function(file_name = "Current Account to GDP.xlsm"
                                 sub_bucket = "External Imbalances",
                                 n_Quarters = 4,
                                 end_ts_at = "Q4 2019",
-                                datapath = "../DataFolder", 
+                                datapath = "./DataFolder", 
                                 time_points_in_plots = 30
                                 ) {
   
@@ -410,7 +412,7 @@ last_n_Quarters_risk_color <- function(file_name = "Current Account to GDP.xlsm"
     if(time_series_type == "Monthly"){ Ratio_data = NULL }
     
     #Check if directory exists, if not create it 
-    path_R_output_data <- file.path("..", "R_output_data")
+    path_R_output_data <- file.path(".", "R_output_data")
     dir.create(path_R_output_data, recursive = T)    
     
     #Merge and export function call
@@ -528,7 +530,7 @@ last_n_Quarters_risk_color <- function(file_name = "Current Account to GDP.xlsm"
     ### Place the plots in their respective bucket folder as one plot. 
     #Check if directory exists, if not create one. 
     
-    path_dir = file.path("..", "Heatmap_Subplots", bucket)
+    path_dir = file.path(".", "Heatmap_Subplots", bucket)
     dir.create(path_dir, recursive = T)
     
     # Save under directory as pdf/jpeg.
@@ -636,7 +638,7 @@ print(risk_wide)
 ```{r}
 # Code to export the clean version of the the risk_data.
 todaysDate <- format(Sys.time(), "%d%m%Y")
-risk_data_path <- "../R_output_data/Last_n_observations/"
+risk_data_path <- "./R_output_data/Last_n_observations/"
 risk_data_name_and_path <- paste0(risk_data_path, "risk_data_", todaysDate, ".csv")
 write.csv(risk_data, file = risk_data_name_and_path, row.names = F) 
 ```
@@ -688,7 +690,7 @@ for (bucket in unique(risk_data$bucket)) {
                 plot.title = element_text(family="Times", face = "bold", size = 16),
                 plot.title.position = "plot") +
           scale_x_discrete(position = "top") +
-          facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F, switch = "y") # labeller = label_wrap_gen()
+          facet_grid(sub_bucket~.,  scales = "free", shrink = F, switch = "y") # labeller = label_wrap_gen()  #Removed `space="free"` from the facet_grid argument.Now works.07-Nov-2021
     
     
     p2 <- ggplot(arrow_data_frame, aes(x = Period, y = time_series_name))+
@@ -702,7 +704,7 @@ for (bucket in unique(risk_data$bucket)) {
                 axis.ticks.y = element_blank(),
                 aspect.ratio = 10/1) +
           scale_x_discrete(breaks = c("Q4 2019"),labels = c("Trend"), position = "top") +
-          facet_grid(sub_bucket~., space = "free", scales = "free", shrink = F) + 
+          facet_grid(sub_bucket~.,  scales = "free", shrink = F) +  #Removed `space="free"` from the facet_grid argument.Now works.07-Nov-2021
           theme(strip.background = element_blank(),  strip.text.y = element_blank())
     #p2 = p2 + clean_theme()
     

@@ -17,7 +17,7 @@ last_n_Quarters_risk_color = function(file_name = "Current Account to GDP.xlsm",
                                       sub_bucket = "Extenal Imbalances",
                                       n_Quarters = 4,
                                       end_ts_at = "Q4 2019",
-                                      datapath = "../DataFolder",
+                                      datapath = "./DataFolder",
                                       export_R_calculations = "Yes"
                                       
 ) {
@@ -312,7 +312,7 @@ last_n_Quarters_risk_color = function(file_name = "Current Account to GDP.xlsm",
   if(time_series_type == "Monthly"){ time_series_GDP_Ratio_data = NULL }
   
   #Check if directory exists, if not create it. 
-  path_R_output_data = file.path("..", "R_output_data")
+  path_R_output_data = file.path(".", "R_output_data")
   dir.create(path_R_output_data, recursive = T)    
   
   #Merge and export function call
@@ -758,7 +758,7 @@ create_subplots_and_last_n_Quarters_risk_color = function(file_name = "Current A
   if(time_series_type == "Monthly"){ time_series_GDP_Ratio_data = NULL }
   
   #Check if directory exists, if not create it. 
-  path_R_output_data = file.path("..", "R_output_data")
+  path_R_output_data = file.path(".", "R_output_data")
   dir.create(path_R_output_data, recursive = T)    
   
   #Merge and export function call
@@ -880,7 +880,7 @@ create_subplots_and_last_n_Quarters_risk_color = function(file_name = "Current A
   
   #Check if directory exists, if not create one. 
   
-  path_dir = file.path("..", "Heatmap_Subplots", bucket)
+  path_dir = file.path(".", "Heatmap_Subplots", bucket)
   dir.create(path_dir, recursive = T)
   
   # Save under directory as pdf/jpeg.
@@ -1291,7 +1291,7 @@ create_subplots = function(file_name = "Current Account to GDP.xlsm",
   if(time_series_type == "Monthly"){ time_series_GDP_Ratio_data = NULL }
   
   #Check if directory exists, if not create it. 
-  path_R_output_data = file.path("..", "R_output_data")
+  path_R_output_data = file.path(".", "R_output_data")
   dir.create(path_R_output_data, recursive = T)    
   
   #Merge and export function call

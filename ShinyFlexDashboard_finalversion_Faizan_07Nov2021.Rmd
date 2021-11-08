@@ -152,6 +152,7 @@ bucket = bucket_list[1]
     ## Now create the row data
     
     arrow_data_frame = data[data$Period == last_Q, ]
+    arrow_data_frame = left_join(arrow_data_frame, select(input_file, all_of(c("time_series_name", "risk"))) , by = "time_series_name" )
     
     last_ratio_ts = as.numeric(data$ratio_ts[data$Period == last_Q ])
     second_last_ratio_ts =  as.numeric(data$ratio_ts[data$Period == second_last_Q ])
