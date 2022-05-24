@@ -640,7 +640,7 @@ print(risk_wide)
 todaysDate <- format(Sys.time(), "%d%m%Y")
 risk_data_path <- "./R_output_data/Last_n_observations/"
 risk_data_name_and_path <- paste0(risk_data_path, "risk_data_", todaysDate, ".csv")
-write.csv(risk_data, file = risk_data_name_and_path, row.names = F) 
+#write.csv(risk_data, file = risk_data_name_and_path, row.names = F) 
 ```
 
 
